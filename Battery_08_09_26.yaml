@@ -1,0 +1,416 @@
+#code parts used from
+#https://github.com/esphome/feature-requests/issues/1109#issuecomment-1059808670
+#https://github.com/kotope/esphome_eink_dashboard
+#https://gist.github.com/Plawasan/4ae826b05aaa7812f3a191714ca47a50
+#https://github.com/hanspeda/esphome_homeassistant_display.git
+#chatgpt.com
+
+substitutions:
+  run_time: 1min #can be as long as needed to get data 
+  sleep_time: 15min # normal sleep time
+  night_sleep_time: 8h # 1st sleep time after 10pm
+
+esphome:
+  name: eink
+  friendly_name: Eink
+  on_boot:
+    priority: 700
+    then:
+      - light.turn_on: awake_led
+      - logger.log: "Boot: waiting for sensors to become ready before first draw, then sleep."
+      - component.update: adc_5v_raw
+      - component.update: adc_batt_raw
+      - delay: 200ms
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+  cpu_frequency: 80MHz
+
+logger:
+  level: DEBUG
+
+api:
+  encryption:
+    key: !secret einkapi
+
+ota:
+  - platform: esphome
+    password: "af02dabd1a628b113fb6ffc6c6a94c17"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  manual_ip:
+    static_ip: 192.168.7.103 # 👈 Replace with your desired static IP
+    gateway: 192.168.7.1     # 👈 Replace with your router's IP
+    subnet: 255.255.255.0    # 👈 Your network's subnet mask
+  ap:
+    ssid: "Battery Fallback Hotspot"
+    password: "BDVDN7O0KT7E"
+
+captive_portal:
+
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+
+font:
+  - file: "fonts/TEMPSITC.TTF"
+    id: my_font
+    size: 30
+  - file: "fonts/GILSANUB.TTF"
+    id: GILSANUB
+    size: 38
+  - file: "fonts/TEMPSITC.TTF"
+    id: small
+    size: 14
+
+image:
+  - file: "icons/partly_cloudy.bmp"
+    id: icon_partlycloudy
+    type: BINARY
+    resize: 24x24
+    invert_alpha: true
+  - file: "icons/House.bmp"
+    id: icon_inside
+    type: BINARY
+    resize: 34x34
+    invert_alpha: false
+  - file: "icons/Outside.bmp"
+    id: icon_tree
+    type: BINARY
+    resize: 42x42
+    invert_alpha: true
+
+text_sensor:
+  - platform: homeassistant
+    id: forecast_condition
+    entity_id: weather.forecast_home
+
+sensor:
+  - platform: homeassistant
+    id: planter_moisture
+    entity_id: sensor.calibrated_planter_capacitance_moisture
+  - platform: homeassistant
+    id: humidity_outside
+    entity_id: sensor.indoor_outdoor_meter_0a71_humidity
+  - platform: homeassistant
+    id: temperature_outside
+    entity_id: sensor.calibrated_porch_temperature
+  - platform: homeassistant
+    id: co2_office
+    entity_id: sensor.co2_meter_carbon_dioxide
+  - platform: homeassistant
+    id: humidity_printer
+    entity_id: sensor.printer_barometer_humidity
+  - platform: homeassistant
+    id: temperature_printer
+    entity_id: sensor.printer_barometer_temperature
+  
+  # ----- 5V sense (pre-divider) -----
+  - platform: adc
+    id: adc_5v_raw
+    name: "ADC Pin Voltage (GPIO36)"
+    pin: GPIO36
+    attenuation: 12db
+    update_interval: 5min
+    accuracy_decimals: 3
+    internal: true
+
+  - platform: copy
+    source_id: adc_5v_raw
+    id: source_voltage
+    name: "5V"
+    unit_of_measurement: "V"
+    accuracy_decimals: 2
+    filters:
+      - multiply: 1.8
+    on_value:
+      then:
+        - lambda: |-
+            static bool present = false;
+            if (!present && x > 4.0) present = true;
+            else if (present && x < 3.0) present = false;
+            id(voltage_present).publish_state(present);
+
+  # ----- LiPo battery voltage -----
+  - platform: adc
+    id: adc_batt_raw
+    name: "ADC Pin Voltage (GPIO32)"
+    pin: GPIO32
+    attenuation: 12db
+    update_interval: 5min
+    accuracy_decimals: 3
+    internal: true
+
+  - platform: copy
+    source_id: adc_batt_raw
+    id: battery_voltage
+    name: "Battery Voltage"
+    unit_of_measurement: "V"
+    device_class: voltage
+    state_class: measurement
+    accuracy_decimals: 2
+    filters:
+      - multiply: 1.36
+  
+  - platform: copy
+    source_id: battery_voltage
+    id: battery_percent
+    name: "Battery %"
+    unit_of_measurement: "%"
+    device_class: battery
+    state_class: measurement
+    accuracy_decimals: 0
+    filters:
+      # Nonlinear-ish LiPo curve (tweak to your cell)
+      - calibrate_linear:
+          - 4.18 -> 100
+          - 4.00 -> 85
+          - 3.85 -> 60
+          - 3.80 -> 50
+          - 3.70 -> 25
+          - 3.50 -> 5
+          - 3.30 -> 0
+      # Clamp and smooth
+      - lambda: |-
+          if (x < 0) x = 0;
+          if (x > 100) x = 100;
+          return x;
+      - sliding_window_moving_average:
+          window_size: 4
+          send_every: 1   
+  - platform: wifi_signal
+    id: wifi_signal_dbm
+    name: "WiFi Signal"
+    update_interval: 60s
+    entity_category: diagnostic
+    filters:
+      - delta: 1 
+  
+  - platform: copy
+    source_id: wifi_signal_dbm
+    name: "WiFi Signal (%)"
+    unit_of_measurement: "%"
+    device_class: signal_strength
+    entity_category: diagnostic
+    accuracy_decimals: 0
+    filters:
+      - lambda: |-
+          const float RSSI_MIN = -90.0f;
+          const float RSSI_MAX = -30.0f;
+          float percent = (x - RSSI_MIN) / (RSSI_MAX - RSSI_MIN) * 100.0f;
+          if (percent < 0.0f) percent = 0.0f;
+          if (percent > 100.0f) percent = 100.0f;
+          return percent;
+      - sliding_window_moving_average:
+          window_size: 4
+          send_every: 1
+
+
+
+time:
+  - platform: homeassistant
+    id: home_time
+
+binary_sensor:
+  - platform: template
+    id: voltage_present
+    name: "Voltage Present"
+    internal: true
+    device_class: power
+    filters:
+      - delayed_on: 100ms
+      - delayed_off: 300ms
+    on_release:
+      then:
+        - logger.log: "Voltage lost — entering deep sleep."
+        - light.turn_off: awake_led
+        - deep_sleep.enter: deep_sleep_ctrl
+
+  - platform: template
+    id: sensors_ready
+    internal: true
+    name: "Sensors Ready"
+    lambda: |-
+      return (
+        id(temperature_printer).has_state() && !isnan(id(temperature_printer).state)
+      );
+    on_press:
+      then:
+        - logger.log: "Sensors ready — performing one-time EPaper update."
+        - component.update: epd
+        - if:
+            condition:
+              binary_sensor.is_off: voltage_present
+            then:
+              - logger.log: "5V absent — sleeping after draw."
+              - delay: 5s
+              - light.turn_off: awake_led
+              - script.execute: enter_sleep
+            else:
+              - logger.log: "5V present — staying awake."
+              - light.turn_on: awake_led
+
+script:
+  - id: enter_sleep
+    then:
+      - if:
+          condition:
+            lambda: |-
+              auto time = id(home_time).now();
+              if (!time.is_valid()) return false;
+              return (time.hour >= 21); 
+          then:
+            - logger.log: "It's nighttime, entering long sleep for ${night_sleep_time}"
+            ### THIS IS LOGGING IN HOME ASSISTANT ###
+            - homeassistant.event:
+                event: esphome.battery_sleep
+                data:
+                  device: battery
+                  reason: "night"
+                  duration: "${night_sleep_time}"
+                  voltage: !lambda 'return id(battery_voltage).state;'
+                  now: !lambda 'return id(home_time).now().strftime("%Y-%m-%d %H:%M:%S");'
+            ### TO HERE ###
+            - deep_sleep.enter:
+                id: deep_sleep_ctrl
+                sleep_duration: ${night_sleep_time}
+          else:
+            - logger.log: "It's daytime, entering short sleep for ${sleep_time}"
+            ### THIS IS LOGGING IN HOME ASSISTANT ###
+            - homeassistant.event:
+                event: esphome.battery_sleep
+                data:
+                  device: battery
+                  reason: "day"
+                  duration: "${sleep_time}"
+                  voltage: !lambda 'return id(battery_voltage).state;'
+                  now: !lambda 'return id(home_time).now().strftime("%Y-%m-%d %H:%M:%S");'
+            ### TO HERE ###
+            - deep_sleep.enter:
+                id: deep_sleep_ctrl
+                sleep_duration: ${sleep_time}
+
+output:
+  - platform: gpio
+    pin: GPIO22
+    id: led_pin
+
+light:
+  - platform: binary
+    name: "Awake LED"
+    id: awake_led
+    output: led_pin
+
+interval:
+  #- interval: 5s
+  #  then:
+  #    - component.update: adc_5v_raw
+  #    - component.update: adc_batt_raw
+
+  - interval: 2min
+    then:
+      - if:
+          condition:
+            and:
+              - binary_sensor.is_on: sensors_ready
+              - binary_sensor.is_on: voltage_present
+          then:
+            - component.update: epd
+            - component.update: adc_5v_raw
+            - component.update: adc_batt_raw
+
+display:
+  - platform: waveshare_epaper
+    id: epd
+    model: 2.90inv2-r2
+    reset_duration: 2ms
+    rotation: 90°
+    cs_pin: GPIO15
+    dc_pin: GPIO17
+    busy_pin: GPIO4
+    reset_pin: GPIO16
+    full_update_every: 5
+    update_interval: never
+    lambda: |-
+      if (!id(sensors_ready).state) {
+        ESP_LOGI("display", "Sensors not ready — skipping EPaper draw");
+        return;
+      }
+      static const int TESTING_SPACER = -5;
+      static const int IMAGE_HORIZONTAL = 10;
+      static const int TEMP_HORIZONTAL = IMAGE_HORIZONTAL + 40;
+      static const int HUMIDITY_HORIZONTAL = TEMP_HORIZONTAL + 110;
+      static const int RIGHT_COL_HORIZONTAL = HUMIDITY_HORIZONTAL + 65;
+      static const int OUTSIDE_TEMP_VERT = 15 + TESTING_SPACER;
+      static const int OUTSIDE_TEXT_VERT = OUTSIDE_TEMP_VERT + 9;
+      static const int INSIDE_TEMP_VERT = OUTSIDE_TEMP_VERT + 53;
+      static const int INSIDE_TEXT_VERT = INSIDE_TEMP_VERT + 9;
+
+      
+      it.strftime(5, 110, id(small), TextAlign::TOP_LEFT, "%m/%d/%Y %I:%M:%S %p", id(home_time).now());
+      it.printf(TEMP_HORIZONTAL, OUTSIDE_TEMP_VERT, id(GILSANUB), TextAlign::TOP_LEFT, "%.0f°", id(temperature_outside).state);
+      it.printf(HUMIDITY_HORIZONTAL, OUTSIDE_TEXT_VERT, id(my_font), TextAlign::TOP_LEFT, "%.0f%%", id(humidity_outside).state);
+      it.printf(RIGHT_COL_HORIZONTAL, OUTSIDE_TEXT_VERT, id(my_font), TextAlign::TOP_LEFT, "%.0f%%", id(planter_moisture).state);
+      it.printf(HUMIDITY_HORIZONTAL, INSIDE_TEXT_VERT, id(my_font), TextAlign::TOP_LEFT, "%.0f%%", id(humidity_printer).state);
+      if (!isnan(id(temperature_printer).state)) {
+        it.printf(TEMP_HORIZONTAL, INSIDE_TEMP_VERT, id(GILSANUB), TextAlign::TOP_LEFT, "%.0f°", id(temperature_printer).state);
+      } else {
+        it.print(TEMP_HORIZONTAL, INSIDE_TEMP_VERT, id(GILSANUB), TextAlign::TOP_LEFT, "--°");
+      }
+      it.printf(RIGHT_COL_HORIZONTAL, INSIDE_TEXT_VERT, id(my_font), TextAlign::TOP_LEFT, "%.0f", id(co2_office).state);
+      it.image(IMAGE_HORIZONTAL, INSIDE_TEMP_VERT + 5, id(icon_inside));
+      it.image(IMAGE_HORIZONTAL - 3, OUTSIDE_TEMP_VERT, id(icon_tree));
+
+      
+      
+      
+      
+      // ---- Battery readout (top-right) ----
+      static const int BATT_X = 250;   // adjust to taste for your layout
+      static const int BATT_Y = 2;
+      static const int BATT_W = 30;
+      static const int BATT_H = 12;
+
+      // Outline box
+      it.rectangle(BATT_X, BATT_Y, BATT_W, BATT_H);
+      // Battery "nub"
+      it.filled_rectangle(BATT_X + BATT_W, BATT_Y + (BATT_H/3), 4, BATT_H/3);
+
+      // Fill level bar
+      float pct = id(battery_percent).has_state() ? id(battery_percent).state : NAN;
+      float v   = id(battery_voltage).has_state() ? id(battery_voltage).state : NAN;
+
+      // inner bar area (with small padding)
+      const int PAD = 3;
+      int inner_w = BATT_W - 2*PAD;
+      int inner_h = BATT_H - 2*PAD;
+      it.rectangle(BATT_X + PAD, BATT_Y + PAD, inner_w, inner_h);
+
+      if (!isnan(pct)) {
+        int fill_w = (int) roundf(inner_w * (pct / 100.0f));
+        if (fill_w < 0) fill_w = 0;
+        it.filled_rectangle(BATT_X + PAD, BATT_Y + PAD, fill_w, inner_h);
+      }
+
+      /* // Text: "xx%  x.xxV"
+      if (!isnan(pct) && !isnan(v)) {
+        it.printf(BATT_X - 2, BATT_Y + BATT_H + 2, id(small), TextAlign::TOP_LEFT, "%.0f%%  %.2fV", pct, v);
+      } else {
+        it.print(BATT_X - 2, BATT_Y + BATT_H + 2, id(small), TextAlign::TOP_LEFT, "--%  --.--V");
+      } */
+
+      // Charging indicator if 5V present
+      if (id(voltage_present).state) {
+        it.print(BATT_X - BATT_W, BATT_Y + (BATT_H/2), id(small), TextAlign::CENTER_LEFT, "+5V");
+      }
+
+deep_sleep:
+  id: deep_sleep_ctrl
+  run_duration: ${run_time}
+  sleep_duration: ${sleep_time}
+  wakeup_pin: GPIO39
+  wakeup_pin_mode: KEEP_AWAKE
