@@ -87,11 +87,11 @@ font above the values.
 ```
       0                                                              296
       ┌────────────────────────────────────────────────────────────────┐
-    0 │              Temp          Humidity       Soil                 │
+    0 │              Outside Temp   Humidity       Soil                 │
       │  ╔══════╗                                                      │
    13 │  ║ tree ║    92°           51%            39%                  │
       │  ╚══════╝                                                      │
-   54 │              Temp          Humidity       CO2                  │
+   54 │              Inside Temp    Humidity       CO2                  │
       │  ╔══════╗                                                      │
    67 │  ║ home ║    74°           60%            565                  │
       │  ╚══════╝                                                      │

@@ -360,10 +360,10 @@ display:
       it.strftime(5, 110, id(small), TextAlign::TOP_LEFT, "%m/%d/%Y %I:%M:%S %p", id(home_time).now());
 
       // ---- Column labels ----
-      it.print(TEMP_HORIZONTAL, OUTSIDE_LABEL_VERT, id(label_font), TextAlign::TOP_LEFT, "Temp");
+      it.print(TEMP_HORIZONTAL, OUTSIDE_LABEL_VERT, id(label_font), TextAlign::TOP_LEFT, "Outside Temp");
       it.print(HUMIDITY_HORIZONTAL, OUTSIDE_LABEL_VERT, id(label_font), TextAlign::TOP_LEFT, "Humidity");
       it.print(RIGHT_COL_HORIZONTAL, OUTSIDE_LABEL_VERT, id(label_font), TextAlign::TOP_LEFT, "Soil");
-      it.print(TEMP_HORIZONTAL, INSIDE_LABEL_VERT, id(label_font), TextAlign::TOP_LEFT, "Temp");
+      it.print(TEMP_HORIZONTAL, INSIDE_LABEL_VERT, id(label_font), TextAlign::TOP_LEFT, "Inside Temp");
       it.print(HUMIDITY_HORIZONTAL, INSIDE_LABEL_VERT, id(label_font), TextAlign::TOP_LEFT, "Humidity");
       it.print(RIGHT_COL_HORIZONTAL, INSIDE_LABEL_VERT, id(label_font), TextAlign::TOP_LEFT, "CO2");
 
