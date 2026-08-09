@@ -66,6 +66,9 @@ font:
   - file: "fonts/TEMPSITC.TTF"
     id: small
     size: 14
+  - file: "fonts/TEMPSITC.TTF"
+    id: label_font
+    size: 13
 
 image:
   - file: "icons/partly_cloudy.bmp"
@@ -345,13 +348,25 @@ display:
       static const int TEMP_HORIZONTAL = IMAGE_HORIZONTAL + 40;
       static const int HUMIDITY_HORIZONTAL = TEMP_HORIZONTAL + 110;
       static const int RIGHT_COL_HORIZONTAL = HUMIDITY_HORIZONTAL + 65;
-      static const int OUTSIDE_TEMP_VERT = 15 + TESTING_SPACER;
+      static const int LABEL_HEIGHT = 13;
+      static const int OUTSIDE_LABEL_VERT = 5 + TESTING_SPACER;
+      static const int OUTSIDE_TEMP_VERT = OUTSIDE_LABEL_VERT + LABEL_HEIGHT;
       static const int OUTSIDE_TEXT_VERT = OUTSIDE_TEMP_VERT + 9;
-      static const int INSIDE_TEMP_VERT = OUTSIDE_TEMP_VERT + 53;
+      static const int INSIDE_LABEL_VERT = OUTSIDE_LABEL_VERT + 54;
+      static const int INSIDE_TEMP_VERT = INSIDE_LABEL_VERT + LABEL_HEIGHT;
       static const int INSIDE_TEXT_VERT = INSIDE_TEMP_VERT + 9;
 
       
       it.strftime(5, 110, id(small), TextAlign::TOP_LEFT, "%m/%d/%Y %I:%M:%S %p", id(home_time).now());
+
+      // ---- Column labels ----
+      it.print(TEMP_HORIZONTAL, OUTSIDE_LABEL_VERT, id(label_font), TextAlign::TOP_LEFT, "Temp");
+      it.print(HUMIDITY_HORIZONTAL, OUTSIDE_LABEL_VERT, id(label_font), TextAlign::TOP_LEFT, "Humidity");
+      it.print(RIGHT_COL_HORIZONTAL, OUTSIDE_LABEL_VERT, id(label_font), TextAlign::TOP_LEFT, "Soil");
+      it.print(TEMP_HORIZONTAL, INSIDE_LABEL_VERT, id(label_font), TextAlign::TOP_LEFT, "Temp");
+      it.print(HUMIDITY_HORIZONTAL, INSIDE_LABEL_VERT, id(label_font), TextAlign::TOP_LEFT, "Humidity");
+      it.print(RIGHT_COL_HORIZONTAL, INSIDE_LABEL_VERT, id(label_font), TextAlign::TOP_LEFT, "CO2");
+
       it.printf(TEMP_HORIZONTAL, OUTSIDE_TEMP_VERT, id(GILSANUB), TextAlign::TOP_LEFT, "%.0f°", id(temperature_outside).state);
       it.printf(HUMIDITY_HORIZONTAL, OUTSIDE_TEXT_VERT, id(my_font), TextAlign::TOP_LEFT, "%.0f%%", id(humidity_outside).state);
       it.printf(RIGHT_COL_HORIZONTAL, OUTSIDE_TEXT_VERT, id(my_font), TextAlign::TOP_LEFT, "%.0f%%", id(planter_moisture).state);
@@ -363,15 +378,15 @@ display:
       }
       it.printf(RIGHT_COL_HORIZONTAL, INSIDE_TEXT_VERT, id(my_font), TextAlign::TOP_LEFT, "%.0f", id(co2_office).state);
       it.image(IMAGE_HORIZONTAL, INSIDE_TEMP_VERT + 5, id(icon_inside));
-      it.image(IMAGE_HORIZONTAL - 3, OUTSIDE_TEMP_VERT, id(icon_tree));
+      it.image(IMAGE_HORIZONTAL - 3, OUTSIDE_TEMP_VERT - 2, id(icon_tree));
 
       
       
       
       
-      // ---- Battery readout (top-right) ----
+      // ---- Battery readout (bottom-right) ----
       static const int BATT_X = 250;   // adjust to taste for your layout
-      static const int BATT_Y = 2;
+      static const int BATT_Y = 110;
       static const int BATT_W = 30;
       static const int BATT_H = 12;
 

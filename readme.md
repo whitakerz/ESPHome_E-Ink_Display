@@ -81,31 +81,32 @@ The display is battery-powered and relies on ESPHome's deep sleep functionality:
 ## Display Layout
 
 The panel is 296 x 128 px (rotated 90°) and is laid out as two single-line rows:
-outdoor on top, indoor below.
+outdoor on top, indoor below. Each row carries its own column labels in a 13 pt
+font above the values.
 
 ```
       0                                                              296
       ┌────────────────────────────────────────────────────────────────┐
-    0 │                                              +5V   ▛▀▀▀▀▜      │
-      │  ╔══════╗                                          ▙▄▄▄▄▟      │
-   10 │  ║ tree ║    92°           51%            39%                  │
-      │  ╚══════╝                                                      │
-      │                                                                │
+    0 │              Temp          Humidity       Soil                 │
       │  ╔══════╗                                                      │
-   63 │  ║ home ║    74°           60%            565                  │
+   13 │  ║ tree ║    92°           51%            39%                  │
+      │  ╚══════╝                                                      │
+   54 │              Temp          Humidity       CO2                  │
+      │  ╔══════╗                                                      │
+   67 │  ║ home ║    74°           60%            565                  │
       │  ╚══════╝                                                      │
       │                                                                │
-  110 │  08/09/2026 12:46:44 PM                                        │
+  110 │  08/09/2026 12:46:44 PM                    +5V   ▛▀▀▀▀▜        │
   128 └────────────────────────────────────────────────────────────────┘
-         x=10    x=50           x=160          x=225
+         x=10    x=50           x=160          x=225      x=220  x=250
        IMAGE_    TEMP_          HUMIDITY_      RIGHT_COL_
        HORIZONTAL HORIZONTAL    HORIZONTAL     HORIZONTAL
 ```
 
 - Top row (tree icon) shows outdoor temperature, humidity, and planter soil moisture.
 - Bottom row (house icon) shows printer-enclosure temperature, humidity, and office CO2.
-- Top-right contains a battery indicator with charging status.
 - Bottom-left shows the timestamp of the last update.
+- Bottom-right contains the battery indicator and the `+5V` charging marker.
 
 ### Entity map
 
